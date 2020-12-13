@@ -7,13 +7,12 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/stack-labs/stack-rpc/env"
-
 	"github.com/stack-labs/stack-rpc/client"
 	"github.com/stack-labs/stack-rpc/cmd"
 	"github.com/stack-labs/stack-rpc/debug/profile"
 	"github.com/stack-labs/stack-rpc/debug/profile/pprof"
 	"github.com/stack-labs/stack-rpc/debug/service/handler"
+	"github.com/stack-labs/stack-rpc/env"
 	log "github.com/stack-labs/stack-rpc/logger"
 	"github.com/stack-labs/stack-rpc/plugin"
 	"github.com/stack-labs/stack-rpc/server"
@@ -22,6 +21,7 @@ import (
 
 type service struct {
 	opts Options
+	ctx  *stackContext
 
 	once sync.Once
 }
@@ -37,6 +37,8 @@ func newService(opts ...Option) Service {
 
 	return &service{
 		opts: options,
+		// inject the context
+		ctx: stackCtx,
 	}
 }
 
@@ -81,11 +83,11 @@ func (s *service) Options() Options {
 }
 
 func (s *service) Client() client.Client {
-	return s.opts.Client
+	return s.ctx.runtime.client
 }
 
 func (s *service) Server() server.Server {
-	return s.opts.Server
+	return s.ctx.runtime.server
 }
 
 func (s *service) String() string {
