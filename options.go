@@ -5,38 +5,33 @@ import (
 	"time"
 
 	"github.com/stack-labs/stack-rpc/broker"
-	"github.com/stack-labs/stack-rpc/broker/http"
 	"github.com/stack-labs/stack-rpc/client"
-	clientM "github.com/stack-labs/stack-rpc/client/mucp"
 	"github.com/stack-labs/stack-rpc/client/selector"
-	selectorR "github.com/stack-labs/stack-rpc/client/selector/registry"
 	"github.com/stack-labs/stack-rpc/cmd"
 	"github.com/stack-labs/stack-rpc/config"
 	"github.com/stack-labs/stack-rpc/logger"
 	"github.com/stack-labs/stack-rpc/pkg/cli"
 	"github.com/stack-labs/stack-rpc/registry"
-	"github.com/stack-labs/stack-rpc/registry/mdns"
 	"github.com/stack-labs/stack-rpc/server"
-	"github.com/stack-labs/stack-rpc/server/mucp"
 	"github.com/stack-labs/stack-rpc/transport"
-	transportH "github.com/stack-labs/stack-rpc/transport/http"
 )
 
 type Options struct {
-	Broker    broker.Broker
-	Cmd       cmd.Cmd
-	Client    client.Client
-	Server    server.Server
-	Registry  registry.Registry
-	Transport transport.Transport
-	Selector  selector.Selector
-	Config    config.Config
-	Logger    logger.Logger
 	// Before and After funcs
 	BeforeStart []func() error
 	BeforeStop  []func() error
 	AfterStart  []func() error
 	AfterStop   []func() error
+
+	Broker    broker.Options
+	Cmd       cmd.Options
+	Client    client.Options
+	Server    server.Options
+	Registry  registry.Options
+	Transport transport.Options
+	Selector  selector.Options
+	Logger    logger.Options
+	Config    config.Options
 
 	// Other options for implementations of the interface
 	// can be stored in a context
@@ -47,15 +42,15 @@ type Options struct {
 
 func newOptions(opts ...Option) Options {
 	opt := Options{
-		Broker:    http.NewBroker(),
-		Cmd:       cmd.NewCmd(),
-		Client:    clientM.NewClient(),
-		Server:    mucp.NewServer(),
-		Registry:  mdns.NewRegistry(),
-		Transport: transportH.NewTransport(),
-		Selector:  selectorR.NewSelector(),
-		Logger:    logger.DefaultLogger,
-		Config:    config.DefaultConfig,
+		Broker:    broker.Options{},
+		Cmd:       cmd.Options{},
+		Client:    client.Options{},
+		Server:    server.Options{},
+		Registry:  registry.Options{},
+		Transport: transport.Options{},
+		Selector:  selector.Options{},
+		Logger:    logger.Options{},
+		Config:    config.Options{},
 		Context:   context.Background(),
 		Signal:    true,
 	}
@@ -67,34 +62,31 @@ func newOptions(opts ...Option) Options {
 	return opt
 }
 
-func Logger(l logger.Logger) Option {
+func Logger(l logger.Options) Option {
 	return func(o *Options) {
 		o.Logger = l
 	}
 }
 
-func Broker(b broker.Broker) Option {
+func Broker(b broker.Options) Option {
 	return func(o *Options) {
 		o.Broker = b
-		// Update Client and Server
-		o.Client.Init(client.Broker(b))
-		o.Server.Init(server.Broker(b))
 	}
 }
 
-func Cmd(c cmd.Cmd) Option {
+func Cmd(c cmd.Options) Option {
 	return func(o *Options) {
 		o.Cmd = c
 	}
 }
 
-func Client(c client.Client) Option {
+func Client(c client.Options) Option {
 	return func(o *Options) {
 		o.Client = c
 	}
 }
 
-func Config(c config.Config) Option {
+func Config(c config.Options) Option {
 	return func(o *Options) {
 		o.Config = c
 	}
@@ -118,7 +110,7 @@ func HandleSignal(b bool) Option {
 	}
 }
 
-func Server(s server.Server) Option {
+func Server(s server.Options) Option {
 	return func(o *Options) {
 		o.Server = s
 	}
@@ -126,34 +118,24 @@ func Server(s server.Server) Option {
 
 // Registry sets the registry for the service
 // and the underlying components
-func Registry(r registry.Registry) Option {
+func Registry(r registry.Options) Option {
 	return func(o *Options) {
 		o.Registry = r
-		// Update Client and Server
-		o.Client.Init(client.Registry(r))
-		o.Server.Init(server.Registry(r))
-		// Update Selector
-		o.Client.Options().Selector.Init(selector.Registry(r))
-		// Update Broker
-		o.Broker.Init(broker.Registry(r))
 	}
 }
 
 // Selector sets the selector for the service client
-func Selector(s selector.Selector) Option {
+func Selector(s selector.Options) Option {
 	return func(o *Options) {
-		o.Client.Init(client.Selector(s))
+		o.Selector = s
 	}
 }
 
 // Transport sets the transport for the service
 // and the underlying components
-func Transport(t transport.Transport) Option {
+func Transport(t transport.Options) Option {
 	return func(o *Options) {
 		o.Transport = t
-		// Update Client and Server
-		o.Client.Init(client.Transport(t))
-		o.Server.Init(server.Transport(t))
 	}
 }
 
@@ -162,54 +144,54 @@ func Transport(t transport.Transport) Option {
 // Address sets the address of the server
 func Address(addr string) Option {
 	return func(o *Options) {
-		o.Server.Init(server.Address(addr))
+		o.Server.Address = addr
 	}
 }
 
 // Name of the service
 func Name(n string) Option {
 	return func(o *Options) {
-		o.Server.Init(server.Name(n))
+		o.Server.Name = n
 	}
 }
 
 // Version of the service
 func Version(v string) Option {
 	return func(o *Options) {
-		o.Server.Init(server.Version(v))
+		o.Server.Version = v
 	}
 }
 
 // Metadata associated with the service
 func Metadata(md map[string]string) Option {
 	return func(o *Options) {
-		o.Server.Init(server.Metadata(md))
+		o.Server.Metadata = md
 	}
 }
 
 func Flags(flags ...cli.Flag) Option {
 	return func(o *Options) {
-		o.Cmd.App().Flags = append(o.Cmd.App().Flags, flags...)
+		o.Cmd.Flags = append(o.Cmd.Flags, flags...)
 	}
 }
 
 func Action(a func(*cli.Context)) Option {
 	return func(o *Options) {
-		o.Cmd.App().Action = a
+		o.Cmd.Action = a
 	}
 }
 
 // RegisterTTL specifies the TTL to use when registering the service
 func RegisterTTL(t time.Duration) Option {
 	return func(o *Options) {
-		o.Server.Init(server.RegisterTTL(t))
+		o.Server.RegisterTTL = t
 	}
 }
 
 // RegisterInterval specifies the interval on which to re-register
 func RegisterInterval(t time.Duration) Option {
 	return func(o *Options) {
-		o.Server.Init(server.RegisterInterval(t))
+		o.Server.RegisterInterval = t
 	}
 }
 
@@ -218,45 +200,28 @@ func RegisterInterval(t time.Duration) Option {
 // Wrappers are applied in reverse order so the last is executed first.
 func WrapClient(w ...client.Wrapper) Option {
 	return func(o *Options) {
-		// apply in reverse
-		for i := len(w); i > 0; i-- {
-			o.Client = w[i-1](o.Client)
-		}
+		o.Client.Wrappers = w
 	}
 }
 
 // WrapCall is a convenience method for wrapping a Client CallFunc
 func WrapCall(w ...client.CallWrapper) Option {
 	return func(o *Options) {
-		o.Client.Init(client.WrapCall(w...))
+		o.Client.CallOptions.CallWrappers = w
 	}
 }
 
 // WrapHandler adds a handler Wrapper to a list of options passed into the server
 func WrapHandler(w ...server.HandlerWrapper) Option {
 	return func(o *Options) {
-		var wrappers []server.Option
-
-		for _, wrap := range w {
-			wrappers = append(wrappers, server.WrapHandler(wrap))
-		}
-
-		// Init once
-		o.Server.Init(wrappers...)
+		o.Server.HdlrWrappers = w
 	}
 }
 
 // WrapSubscriber adds a subscriber Wrapper to a list of options passed into the server
 func WrapSubscriber(w ...server.SubscriberWrapper) Option {
 	return func(o *Options) {
-		var wrappers []server.Option
-
-		for _, wrap := range w {
-			wrappers = append(wrappers, server.WrapSubscriber(wrap))
-		}
-
-		// Init once
-		o.Server.Init(wrappers...)
+		o.Server.SubWrappers = w
 	}
 }
 

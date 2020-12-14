@@ -7,21 +7,36 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/stack-labs/stack-rpc/broker"
 	"github.com/stack-labs/stack-rpc/client"
+	"github.com/stack-labs/stack-rpc/client/selector"
 	"github.com/stack-labs/stack-rpc/cmd"
+	"github.com/stack-labs/stack-rpc/config"
 	"github.com/stack-labs/stack-rpc/debug/profile"
 	"github.com/stack-labs/stack-rpc/debug/profile/pprof"
 	"github.com/stack-labs/stack-rpc/debug/service/handler"
 	"github.com/stack-labs/stack-rpc/env"
 	log "github.com/stack-labs/stack-rpc/logger"
 	"github.com/stack-labs/stack-rpc/plugin"
+	"github.com/stack-labs/stack-rpc/registry"
 	"github.com/stack-labs/stack-rpc/server"
+	"github.com/stack-labs/stack-rpc/transport"
 	"github.com/stack-labs/stack-rpc/util/wrapper"
 )
 
 type service struct {
 	opts Options
 	ctx  *stackContext
+
+	cmd       cmd.Cmd
+	broker    broker.Broker
+	client    client.Client
+	server    server.Server
+	registry  registry.Registry
+	transport transport.Transport
+	selector  selector.Selector
+	config    config.Config
+	logger    log.Logger
 
 	once sync.Once
 }
@@ -43,7 +58,7 @@ func newService(opts ...Option) Service {
 }
 
 func (s *service) Name() string {
-	return s.opts.Server.Options().Name
+	return s.ctx.runtime.server.Options().Name
 }
 
 // Init initialises options. Additionally it calls cmd.Init
@@ -101,7 +116,7 @@ func (s *service) Start() error {
 		}
 	}
 
-	if err := s.opts.Server.Start(); err != nil {
+	if err := s.server.Start(); err != nil {
 		return err
 	}
 
@@ -123,11 +138,11 @@ func (s *service) Stop() error {
 		}
 	}
 
-	if err := s.opts.Server.Stop(); err != nil {
+	if err := s.server.Stop(); err != nil {
 		return err
 	}
 
-	if err := s.opts.Config.Close(); err != nil {
+	if err := s.config.Close(); err != nil {
 		return err
 	}
 
@@ -141,23 +156,23 @@ func (s *service) Stop() error {
 }
 
 func (s *service) Run() error {
-	if err := s.opts.Cmd.Init(
-		cmd.Broker(&s.opts.Broker),
-		cmd.Registry(&s.opts.Registry),
-		cmd.Transport(&s.opts.Transport),
-		cmd.Client(&s.opts.Client),
-		cmd.Server(&s.opts.Server),
-		cmd.Selector(&s.opts.Selector),
-		cmd.Logger(&s.opts.Logger),
-		cmd.Config(&s.opts.Config),
+	if err := s.cmd.Init(
+		cmd.Broker(&s.broker),
+		cmd.Registry(&s.registry),
+		cmd.Transport(&s.transport),
+		cmd.Client(&s.client),
+		cmd.Server(&s.server),
+		cmd.Selector(&s.selector),
+		cmd.Logger(&s.logger),
+		cmd.Config(&s.config),
 	); err != nil {
 		log.Errorf("cmd init error: %s", err)
 		return err
 	}
 
 	// register the debug handler
-	if err := s.opts.Server.Handle(
-		s.opts.Server.NewHandler(
+	if err := s.server.Handle(
+		s.server.NewHandler(
 			handler.DefaultHandler,
 			server.InternalHandler(true),
 		),
@@ -168,9 +183,9 @@ func (s *service) Run() error {
 	// start the profiler
 	// TODO: set as an option to the service, don't just use pprof
 	if prof := os.Getenv(env.StackDebugProfile); len(prof) > 0 {
-		service := s.opts.Server.Options().Name
-		version := s.opts.Server.Options().Version
-		id := s.opts.Server.Options().Id
+		service := s.server.Options().Name
+		version := s.server.Options().Version
+		id := s.server.Options().Id
 		profiler := pprof.NewProfile(
 			profile.Name(service + "." + version + "." + id),
 		)

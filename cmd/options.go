@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"github.com/stack-labs/stack-rpc/pkg/cli"
 
 	"github.com/stack-labs/stack-rpc/broker"
 	"github.com/stack-labs/stack-rpc/client"
@@ -20,6 +21,8 @@ type Options struct {
 	Name        string
 	Description string
 	Version     string
+	Flags       []cli.Flag
+	Action      interface{}
 	// Other options for implementations of the interface
 	// can be stored in a context
 	Context context.Context
